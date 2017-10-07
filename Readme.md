@@ -7,7 +7,7 @@ Official Torch implementation can be found [here](https://github.com/Yijunmaveri
 ## Prerequisites
 - [Pytorch](http://pytorch.org/)
 - [torchvision](https://github.com/pytorch/vision)
-- Pretrained encoder and decoder [models](https://drive.google.com/open?id=0B4NpdUmFkn_GRTFCMDlad083bjg) for image reconstruction only (download and put them under models/)
+- Pretrained encoder and decoder [models](https://drive.google.com/open?id=0B4NpdUmFkn_GRTFCMDlad083bjg) for image reconstruction only (download and uncompress them under models/)
 - CUDA + CuDNN
 
 ## Prepare images
