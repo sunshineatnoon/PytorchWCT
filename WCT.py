@@ -15,19 +15,17 @@ import time
 parser = argparse.ArgumentParser(description='WCT Pytorch')
 parser.add_argument('--contentPath',default='images/content',help='path to train')
 parser.add_argument('--stylePath',default='images/style',help='path to train')
-parser.add_argument('--contentSeg',default='images/contentSeg',help='path to train')
-parser.add_argument('--styleSeg',default='images/styleSeg',help='path to train')
 parser.add_argument('--workers', default=2, type=int, metavar='N',help='number of data loading workers (default: 4)')
-parser.add_argument('--vgg1', default='models/vgg_normalised_conv1_1.t7', help='Path to the VGG conv1_1')
-parser.add_argument('--vgg2', default='models/vgg_normalised_conv2_1.t7', help='Path to the VGG conv2_1')
-parser.add_argument('--vgg3', default='models/vgg_normalised_conv3_1.t7', help='Path to the VGG conv3_1')
-parser.add_argument('--vgg4', default='models/vgg_normalised_conv4_1.t7', help='Path to the VGG conv4_1')
-parser.add_argument('--vgg5', default='models/vgg_normalised_conv5_1.t7', help='Path to the VGG conv5_1')
-parser.add_argument('--decoder5', default='models/feature_invertor_conv5_1.t7', help='Path to the decoder5')
-parser.add_argument('--decoder4', default='models/feature_invertor_conv4_1.t7', help='Path to the decoder4')
-parser.add_argument('--decoder3', default='models/feature_invertor_conv3_1.t7', help='Path to the decoder3')
-parser.add_argument('--decoder2', default='models/feature_invertor_conv2_1.t7', help='Path to the decoder2')
-parser.add_argument('--decoder1', default='models/feature_invertor_conv1_1.t7', help='Path to the decoder1')
+parser.add_argument('--vgg1', default='/home/xtli/WEIGHTS/WCT_Pytorch/vgg_normalised_conv1_1.t7', help='Path to the VGG conv1_1')
+parser.add_argument('--vgg2', default='/home/xtli/WEIGHTS/WCT_Pytorch/vgg_normalised_conv2_1.t7', help='Path to the VGG conv2_1')
+parser.add_argument('--vgg3', default='/home/xtli/WEIGHTS/WCT_Pytorch/vgg_normalised_conv3_1.t7', help='Path to the VGG conv3_1')
+parser.add_argument('--vgg4', default='/home/xtli/WEIGHTS/WCT_Pytorch/vgg_normalised_conv4_1.t7', help='Path to the VGG conv4_1')
+parser.add_argument('--vgg5', default='/home/xtli/WEIGHTS/WCT_Pytorch/vgg_normalised_conv5_1.t7', help='Path to the VGG conv5_1')
+parser.add_argument('--decoder5', default='/home/xtli/WEIGHTS/WCT_Pytorch/feature_invertor_conv5_1.t7', help='Path to the decoder5')
+parser.add_argument('--decoder4', default='/home/xtli/WEIGHTS/WCT_Pytorch/feature_invertor_conv4_1.t7', help='Path to the decoder4')
+parser.add_argument('--decoder3', default='/home/xtli/WEIGHTS/WCT_Pytorch/feature_invertor_conv3_1.t7', help='Path to the decoder3')
+parser.add_argument('--decoder2', default='/home/xtli/WEIGHTS/WCT_Pytorch/feature_invertor_conv2_1.t7', help='Path to the decoder2')
+parser.add_argument('--decoder1', default='/home/xtli/WEIGHTS/WCT_Pytorch/feature_invertor_conv1_1.t7', help='Path to the decoder1')
 parser.add_argument('--cuda', action='store_true', help='enables cuda')
 parser.add_argument('--batch_size', type=int, default=1, help='batch size')
 parser.add_argument('--fineSize', type=int, default=512, help='resize image to fineSize x fineSize,leave it to 0 if not resize')
@@ -41,7 +39,7 @@ except OSError:
     pass
 
 # Data loading code
-dataset = Dataset(args.contentPath,args.stylePath,args.contentSeg,args.styleSeg,args.fineSize)
+dataset = Dataset(args.contentPath,args.stylePath,args.fineSize)
 loader = torch.utils.data.DataLoader(dataset=dataset,
                                      batch_size=1,
                                      shuffle=False)
@@ -91,77 +89,57 @@ def wct2(cF,sF):
     targetFeature = targetFeature + s_mean.unsqueeze(1).expand_as(targetFeature)
     return targetFeature
 
-def feature_wct(cF,sF,cmasks,smasks,csF):
-    color_code_number = 9
-
+def feature_wct(cF,sF,csF):
     cF = cF.double()
     sF = sF.double()
     C,W,H = cF.size(0),cF.size(1),cF.size(2)
     _,W1,H1 = sF.size(0),sF.size(1),sF.size(2)
-    targetFeature = cF.view(C,-1).clone()
-    for i in range(color_code_number):
-        cmask = cmasks[i].clone().squeeze(0)
-        smask = smasks[i].clone().squeeze(0)
-        if(torch.max(cmask) != 0 and torch.max(smask) != 0):
-            cmaskResized = scale_dialate(cmask,W,H)
-            cmaskView = cmaskResized.view(-1)
-            fgcmask = (cmaskView == 1).nonzero().squeeze(1)
-            cFView = cF.view(C,-1)
-            cFFG = torch.index_select(cFView,1,fgcmask)
+    cFView = cF.view(C,-1)
+    sFView = sF.view(C,-1)
 
-            smaskResized = scale_dialate(smask,W1,H1)
-            smaskView = smaskResized.view(-1)
-            fgsmask = (smaskView == 1).nonzero().squeeze(1)
-            sFView = sF.view(C,-1)
-            sFFG = torch.index_select(sFView,1,fgsmask)
-
-            targetFeatureFG = wct2(cFFG,sFFG)
-            targetFeature.index_copy_(1,fgcmask,targetFeatureFG)
+    targetFeature = wct2(cFView,sFView)
     targetFeature = targetFeature.view_as(cF)
     ccsF = args.alpha * targetFeature + (1.0 - args.alpha) * cF
     ccsF = ccsF.float().unsqueeze(0)
     csF.data.resize_(ccsF.size()).copy_(ccsF)
-    #csF = Variable(csF.unsqueeze(0))
-    #if(args.cuda):
-    #    csF = csF.cuda()
     return csF
 
-def styleTransfer(contentImg,styleImg,cmasks,smasks,imname,csF):
+def styleTransfer(contentImg,styleImg,imname,csF):
     e1,d1,e2,d2,e3,d3,e4,d4,e5,d5 = loadModel(args)
 
     sF5 = e5(styleImg)
     cF5 = e5(contentImg)
     sF5 = sF5.data.cpu().squeeze(0)
     cF5 = cF5.data.cpu().squeeze(0)
-    csF5 = feature_wct(cF5,sF5,cmasks,smasks,csF)
+    csF5 = feature_wct(cF5,sF5,csF)
     Im5 = d5(csF5)
 
     sF4 = e4(Im5)
     cF4 = e4(contentImg)
     sF4 = sF4.data.cpu().squeeze(0)
     cF4 = cF4.data.cpu().squeeze(0)
-    csF4 = feature_wct(cF4,sF4,cmasks,smasks,csF)
+    csF4 = feature_wct(cF4,sF4,csF)
     Im4 = d4(csF4)
 
     sF3 = e3(styleImg)
     cF3 = e3(Im4)
     sF3 = sF3.data.cpu().squeeze(0)
     cF3 = cF3.data.cpu().squeeze(0)
-    csF3 = feature_wct(cF3,sF3,cmasks,smasks,csF)
+    csF3 = feature_wct(cF3,sF3,csF)
     Im3 = d3(csF3)
 
     sF2= e2(styleImg)
     cF2 = e2(Im3)
     sF2 = sF2.data.cpu().squeeze(0)
     cF2 = cF2.data.cpu().squeeze(0)
-    csF2 = feature_wct(cF2,sF2,cmasks,smasks,csF)
+    csF2 = feature_wct(cF2,sF2,csF)
     Im2 = d2(csF2)
 
     sF1 = e1(styleImg)
     cF1 = e1(Im2)
     sF1 = sF1.data.cpu().squeeze(0)
     cF1 = cF1.data.cpu().squeeze(0)
-    csF1 = feature_wct(cF1,sF1,cmasks,smasks,csF)
+    csF1 = feature_wct(cF1,sF1,csF)
     Im1 = d1(csF1)
     # save_image has this wired design to pad images with 4 pixels at default.
     vutils.save_image(Im1.data.cpu().float(),os.path.join(args.outf,imname))
@@ -178,14 +156,14 @@ if(args.cuda):
     cImg = cImg.cuda()
     sImg = sImg.cuda()
     csF = csF.cuda()
-for i,(contentImg,styleImg,content_masks,style_masks,imname) in enumerate(loader):
+for i,(contentImg,styleImg,imname) in enumerate(loader):
     imname = imname[0]
     print('Transferring ' + imname)
     cImg.data.resize_(contentImg.size()).copy_(contentImg)
     sImg.data.resize_(styleImg.size()).copy_(styleImg)
     start_time = time.time()
     # WCT Style Transfer
-    styleTransfer(cImg,sImg,content_masks,style_masks,imname,csF)
+    styleTransfer(cImg,sImg,imname,csF)
     end_time = time.time()
     print('Elapsed time is: %f' % (end_time - start_time))
     avgTime += (end_time - start_time)
