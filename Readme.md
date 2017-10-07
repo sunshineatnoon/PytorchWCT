@@ -31,13 +31,9 @@ python WCT.py --cuda
 Note: image and mask credit to Luan F, Paris S, Shechtman E, et al.
 
 ### Style Transfer without Segmentation Mask
-<img src="images/content/in1.jpg" width="200" hspace="5"><img src="images/style/in1.jpg" width="200" hspace="5">
+<img src="images/content/in1.jpg" width="200" hspace="5"><img src="images/style/in1.jpg" width="200" hspace="5"><img src="images/content/in2.jpg" width="200" hspace="5"><img src="images/style/in2.jpg" width="200" hspace="5">
 
-<img src="samples/in1.jpg" width="400" hspace="10">
-
-<img src="images/content/in2.jpg" width="200" hspace="5"><img src="images/style/in2.jpg" width="200" hspace="5">
-
-<img src="samples/in2.jpg" width="400" hspace="10">
+<img src="samples/in1.jpg" width="400" hspace="10"><img src="samples/in2.jpg" width="400" hspace="10">
 
 ### Acknowledgments
 Many thanks to the author Yijun Li for his kind help.
