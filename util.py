@@ -41,7 +41,6 @@ class WCT(nn.Module):
         self.d5 = decoder5(decoder5_torch)
 
     def whiten_and_color(self,cF,sF):
-        start_time = time.time()
         cFSize = cF.size()
         c_mean = torch.mean(cF,1) # c x (h x w)
         c_mean = c_mean.unsqueeze(1).expand_as(cF)
@@ -76,8 +75,6 @@ class WCT(nn.Module):
         s_d = (s_e[0:k_s]).pow(0.5)
         targetFeature = torch.mm(torch.mm(torch.mm(s_v[:,0:k_s],torch.diag(s_d)),(s_v[:,0:k_s].t())),whiten_cF)
         targetFeature = targetFeature + s_mean.unsqueeze(1).expand_as(targetFeature)
-        end_time = time.time()
-        print("WCT time is %f."%(end_time - start_time))
         return targetFeature
 
     def transform(self,cF,sF,csF,alpha):
