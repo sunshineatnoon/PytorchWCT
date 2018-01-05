@@ -30,6 +30,8 @@ parser.add_argument('--batch_size', type=int, default=1, help='batch size')
 parser.add_argument('--fineSize', type=int, default=512, help='resize image to fineSize x fineSize,leave it to 0 if not resize')
 parser.add_argument('--outf', default='samples/', help='folder to output images')
 parser.add_argument('--alpha', type=float,default=1, help='hyperparameter to blend wct feature and content feature')
+parser.add_argument('--gpu', type=int, default=0, help="which gpu to run on.  default is 0")
+
 args = parser.parse_args()
 
 try:
@@ -44,7 +46,6 @@ loader = torch.utils.data.DataLoader(dataset=dataset,
                                      shuffle=False)
 
 wct = WCT(args)
-wct.cuda(0)
 def styleTransfer(contentImg,styleImg,imname,csF):
 
     sF5 = wct.e5(styleImg)
@@ -91,14 +92,18 @@ sImg = torch.Tensor()
 csF = torch.Tensor()
 csF = Variable(csF)
 if(args.cuda):
-    cImg = cImg.cuda()
-    sImg = sImg.cuda()
-    csF = csF.cuda()
+    cImg = cImg.cuda(args.gpu)
+    sImg = sImg.cuda(args.gpu)
+    csF = csF.cuda(args.gpu)
+    wct.cuda(args.gpu)
 for i,(contentImg,styleImg,imname) in enumerate(loader):
     imname = imname[0]
     print('Transferring ' + imname)
-    cImg = Variable(contentImg.cuda(0),volatile=True)
-    sImg = Variable(styleImg.cuda(0),volatile=True)
+    if (args.cuda):
+        contentImg = contentImg.cuda(args.gpu)
+        styleImg = styleImg.cuda(args.gpu)
+    cImg = Variable(contentImg,volatile=True)
+    sImg = Variable(styleImg,volatile=True)
     start_time = time.time()
     # WCT Style Transfer
     styleTransfer(cImg,sImg,imname,csF)

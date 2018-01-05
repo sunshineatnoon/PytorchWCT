@@ -44,13 +44,13 @@ class Dataset(data.Dataset):
             if(w > h):
                 if(w != self.fineSize):
                     neww = self.fineSize
-                    newh = h*neww/w
+                    newh = int(h*neww/w)
                     contentImg = contentImg.resize((neww,newh))
                     styleImg = styleImg.resize((neww,newh))
             else:
                 if(h != self.fineSize):
                     newh = self.fineSize
-                    neww = w*newh/h
+                    neww = int(w*newh/h)
                     contentImg = contentImg.resize((neww,newh))
                     styleImg = styleImg.resize((neww,newh))
 
