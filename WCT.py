@@ -56,7 +56,7 @@ def styleTransfer(contentImg,styleImg,imname,csF):
     Im5 = wct.d5(csF5)
 
     sF4 = wct.e4(styleImg)
-    cF4 = wct.e4(contentImg)
+    cF4 = wct.e4(Im5)
     sF4 = sF4.data.cpu().squeeze(0)
     cF4 = cF4.data.cpu().squeeze(0)
     csF4 = wct.transform(cF4,sF4,csF,args.alpha)
