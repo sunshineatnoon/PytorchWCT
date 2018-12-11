@@ -1,14 +1,13 @@
 from __future__ import division
 import torch
-from torch.utils.serialization import load_lua
 import torchvision.transforms as transforms
 import numpy as np
 import argparse
 import time
 import os
 from PIL import Image
-from modelsNIPS import decoder1,decoder2,decoder3,decoder4,decoder5
-from modelsNIPS import encoder1,encoder2,encoder3,encoder4,encoder5
+from vgg19_decoders import VGG19Decoder1, VGG19Decoder2, VGG19Decoder3, VGG19Decoder4, VGG19Decoder5 
+from vgg19_normalized import VGG19_normalized
 import torch.nn as nn
 
 
@@ -17,28 +16,19 @@ class WCT(nn.Module):
     def __init__(self,args):
         super(WCT, self).__init__()
         # load pre-trained network
-        vgg1 = load_lua(args.vgg1)
-        decoder1_torch = load_lua(args.decoder1)
-        vgg2 = load_lua(args.vgg2)
-        decoder2_torch = load_lua(args.decoder2)
-        vgg3 = load_lua(args.vgg3)
-        decoder3_torch = load_lua(args.decoder3)
-        vgg4 = load_lua(args.vgg4)
-        decoder4_torch = load_lua(args.decoder4)
-        vgg5 = load_lua(args.vgg5)
-        decoder5_torch = load_lua(args.decoder5)
+        self.encoder = VGG19_normalized()
+        self.encoder.load_state_dict(torch.load(args.encoder))
 
-
-        self.e1 = encoder1(vgg1)
-        self.d1 = decoder1(decoder1_torch)
-        self.e2 = encoder2(vgg2)
-        self.d2 = decoder2(decoder2_torch)
-        self.e3 = encoder3(vgg3)
-        self.d3 = decoder3(decoder3_torch)
-        self.e4 = encoder4(vgg4)
-        self.d4 = decoder4(decoder4_torch)
-        self.e5 = encoder5(vgg5)
-        self.d5 = decoder5(decoder5_torch)
+        self.d1 = VGG19Decoder1()
+        self.d1.load_state_dict(torch.load(args.decoder1))
+        self.d2 = VGG19Decoder2()
+        self.d2.load_state_dict(torch.load(args.decoder2))
+        self.d3 = VGG19Decoder3()
+        self.d3.load_state_dict(torch.load(args.decoder3))
+        self.d4 = VGG19Decoder4()
+        self.d4.load_state_dict(torch.load(args.decoder4))
+        self.d5 = VGG19Decoder5()
+        self.d5.load_state_dict(torch.load(args.decoder5))
 
     def whiten_and_color(self,cF,sF):
         cFSize = cF.size()
@@ -77,7 +67,7 @@ class WCT(nn.Module):
         targetFeature = targetFeature + s_mean.unsqueeze(1).expand_as(targetFeature)
         return targetFeature
 
-    def transform(self,cF,sF,csF,alpha):
+    def transform(self,cF,sF,alpha):
         cF = cF.double()
         sF = sF.double()
         C,W,H = cF.size(0),cF.size(1),cF.size(2)
@@ -87,7 +77,6 @@ class WCT(nn.Module):
 
         targetFeature = self.whiten_and_color(cFView,sFView)
         targetFeature = targetFeature.view_as(cF)
-        ccsF = alpha * targetFeature + (1.0 - alpha) * cF
-        ccsF = ccsF.float().unsqueeze(0)
-        csF.data.resize_(ccsF.size()).copy_(ccsF)
+        csF = alpha * targetFeature + (1.0 - alpha) * cF
+        csF = csF.float().unsqueeze(0)
         return csF
