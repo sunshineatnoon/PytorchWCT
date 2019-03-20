@@ -102,7 +102,7 @@ class VGG19_normalized(nn.Module):
     for n, b in self.blocks.items():
       out = b(out)
       if n in targets:
-        results[n] == out
+        results[n] = out
       if len(results) == len(set(targets)):
         break
 

@@ -1,6 +1,5 @@
 from __future__ import division
 import torch
-import torchvision.transforms as transforms
 import numpy as np
 import argparse
 import time
@@ -29,6 +28,12 @@ class WCT(nn.Module):
         self.d4.load_state_dict(torch.load(args.decoder4))
         self.d5 = VGG19Decoder5()
         self.d5.load_state_dict(torch.load(args.decoder5))
+
+        self.decoders = {'relu1_1': self.d1,
+                         'relu2_1': self.d2,
+                         'relu3_1': self.d3,
+                         'relu4_1': self.d4,
+                         'relu5_1': self.d5}
 
     def whiten_and_color(self,cF,sF):
         cFSize = cF.size()
@@ -67,7 +72,7 @@ class WCT(nn.Module):
         targetFeature = targetFeature + s_mean.unsqueeze(1).expand_as(targetFeature)
         return targetFeature
 
-    def transform(self,cF,sF,alpha):
+    def transform(self, cF, sF):
         cF = cF.double()
         sF = sF.double()
         C,W,H = cF.size(0),cF.size(1),cF.size(2)
@@ -77,6 +82,5 @@ class WCT(nn.Module):
 
         targetFeature = self.whiten_and_color(cFView,sFView)
         targetFeature = targetFeature.view_as(cF)
-        csF = alpha * targetFeature + (1.0 - alpha) * cF
-        csF = csF.float().unsqueeze(0)
-        return csF
+        return targetFeature
+
