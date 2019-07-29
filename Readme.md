@@ -11,6 +11,7 @@ The official Torch implementation can be found [here](https://github.com/Yijunma
 ## Prerequisites
 - [Pytorch](http://pytorch.org/)
 - [torchvision](https://github.com/pytorch/vision)
+- [scikit-image](https://scikit-image.org)
 - Pretrained encoder and decoder [models](http://pascal.inrialpes.fr/data2/archetypal_style/models_pytorch.zip) for image reconstruction only (download and uncompress them under models/)
 - CUDA + CuDNN
 
