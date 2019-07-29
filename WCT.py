@@ -3,6 +3,7 @@
 import os
 import torch
 import argparse
+import pprint
 from PIL import Image
 from torch.autograd import Variable
 import torchvision.utils as vutils
@@ -23,6 +24,9 @@ parser.add_argument('--decoder3', default='models/vgg19_normalized_decoder3.pth.
 parser.add_argument('--decoder2', default='models/vgg19_normalized_decoder2.pth.tar', help='Path to the decoder2')
 parser.add_argument('--decoder1', default='models/vgg19_normalized_decoder1.pth.tar', help='Path to the decoder1')
 parser.add_argument('--cuda', action='store_true', help='enables cuda')
+parser.add_argument('--transform-method', choices=['original', 'closed-form'], default='original',
+                    help=('How to whiten and color the features. "original" for the formulation of Li et al. ( https://arxiv.org/abs/1705.08086 )  '
+                          'or "closed-form" for method of Lu et al. ( https://arxiv.org/abs/1906.00668 '))
 parser.add_argument('--batch_size', type=int, default=1, help='batch size')
 parser.add_argument('--fineSize', type=int, default=512, help='resize image to fineSize x fineSize,leave it to 0 if not resize')
 parser.add_argument('--outf', default='samples/', help='folder to output images')
@@ -32,6 +36,7 @@ parser.add_argument('--delta', type=float,default=1, help='hyperparameter to ble
 parser.add_argument('--gpu', type=int, default=0, help="which gpu to run on.  default is 0")
 
 args = parser.parse_args()
+pprint.pprint(args.__dict__, indent=2)
 
 try:
     os.makedirs(args.outf)
@@ -44,7 +49,7 @@ loader = torch.utils.data.DataLoader(dataset=dataset,
                                      batch_size=1,
                                      shuffle=False)
 
-def styleTransfer(wct, targets, contentImg, styleImg, imname, gamma, delta, outf):
+def styleTransfer(wct, targets, contentImg, styleImg, imname, gamma, delta, outf, transform_method):
 
   current_result = contentImg
   eIorigs = [f.cpu().squeeze(0) for f in wct.encoder(contentImg, targets)]
@@ -58,8 +63,8 @@ def styleTransfer(wct, targets, contentImg, styleImg, imname, gamma, delta, outf
     else:
       eIlast = wct.encoder(current_result, target).cpu().squeeze(0)
 
-    CsIlast = wct.transform(eIlast, eIs).float()
-    CsIorig = wct.transform(eIorig, eIs).float()
+    CsIlast = wct.transform(eIlast, eIs, transform_method).float()
+    CsIorig = wct.transform(eIorig, eIs, transform_method).float()
 
     decoder_input = (gamma*(delta * CsIlast + (1-delta) * CsIorig) \
                      + (1-gamma) * eIorig)
@@ -91,7 +96,7 @@ def main():
       # WCT Style Transfer
       targets = [f'relu{t}_1' for t in args.targets]
       styleTransfer(wct, targets, contentImg, styleImg, imname,
-                    args.gamma, args.delta, args.outf)
+                    args.gamma, args.delta, args.outf, args.transform_method)
       end_time = time.time()
       print(' Elapsed time is: %f' % (end_time - start_time))
       avgTime += (end_time - start_time)

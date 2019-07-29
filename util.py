@@ -12,6 +12,10 @@ import torch.nn as nn
 
 
 def matrix_sqrt(A):
+  A = A.clone()
+  a_diag_ = A.diagonal()
+  a_diag_ += 1e-4
+
   s_u, s_e, s_v = torch.svd(A,some=False)
 
   k_s = A.shape[-1]
@@ -27,6 +31,9 @@ def matrix_sqrt(A):
 
 
 def matrix_inv_sqrt(A):
+  A = A.clone()
+  a_diag_ = A.diagonal()
+  a_diag_ += 1e-4
   k_c = A.shape[-1]
   c_u,c_e,c_v = torch.svd(A, some=False)
 
@@ -65,28 +72,41 @@ class WCT(nn.Module):
                          'relu4_1': self.d4,
                          'relu5_1': self.d5}
 
-    def whiten_and_color(self,cF,sF):
+    def whiten_and_color(self,cF,sF, method):
         cFSize = cF.size()
+        print(f'cF.shape = {cF.shape}')
         c_mean = torch.mean(cF,1) # c x (h x w)
         c_mean = c_mean.unsqueeze(1).expand_as(cF)
         cF = cF - c_mean
 
         contentConv = torch.mm(cF,cF.t()).div(cFSize[1]-1) + torch.eye(cFSize[0]).double()
-        cF_inv_sqrt = matrix_inv_sqrt(contentConv)
 
         sFSize = sF.size()
         s_mean = torch.mean(sF,1)
         sF = sF - s_mean.unsqueeze(1).expand_as(sF)
         styleConv = torch.mm(sF,sF.t()).div(sFSize[1]-1)
-        sF_sqrt = matrix_sqrt(styleConv)
 
-        whiten_cF = torch.mm(cF_inv_sqrt, cF)
+        if method == 'original':  # the original WCT by Li et al.
+          cF_inv_sqrt = matrix_inv_sqrt(contentConv)
+          sF_sqrt = matrix_sqrt(styleConv)
+          # whiten_cF = torch.mm(cF_inv_sqrt, cF)
+          # targetFeature = torch.mm(sF_sqrt,whiten_cF)
+          targetFeature = sF_sqrt @ (cF_inv_sqrt @ cF)
+        else:  # Lu et al.
+          assert method == 'closed-form'
+          cF_sqrt = matrix_sqrt(contentConv)
+          cF_inv_sqrt = matrix_inv_sqrt(contentConv)
+          print(f'cF_sqrt.shape = {cF_sqrt.shape}')
+          middle_matrix = matrix_sqrt(cF_sqrt @ styleConv @ cF_sqrt)
+          print(f'middle_matrix.shape = {middle_matrix.shape}')
+          transform_matrix = cF_inv_sqrt @ middle_matrix @ cF_inv_sqrt
+          targetFeature = transform_matrix @ cF
+          print(f'targetFeature.shape = {targetFeature.shape}')
 
-        targetFeature = torch.mm(sF_sqrt,whiten_cF)
         targetFeature = targetFeature + s_mean.unsqueeze(1).expand_as(targetFeature)
         return targetFeature
 
-    def transform(self, cF, sF):
+    def transform(self, cF, sF, method):
         cF = cF.double()
         sF = sF.double()
         C,W,H = cF.size(0),cF.size(1),cF.size(2)
@@ -94,7 +114,7 @@ class WCT(nn.Module):
         cFView = cF.view(C,-1)
         sFView = sF.view(C,-1)
 
-        targetFeature = self.whiten_and_color(cFView,sFView)
+        targetFeature = self.whiten_and_color(cFView, sFView, method)
         targetFeature = targetFeature.view_as(cF)
         return targetFeature
 
