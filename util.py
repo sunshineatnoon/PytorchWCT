@@ -1,15 +1,14 @@
 from __future__ import division
-import torch
-from torch.utils.serialization import load_lua
-import torchvision.transforms as transforms
-import numpy as np
-import argparse
-import time
 import os
-from PIL import Image
-from modelsNIPS import decoder1,decoder2,decoder3,decoder4,decoder5
-from modelsNIPS import encoder1,encoder2,encoder3,encoder4,encoder5
+
+import torch
 import torch.nn as nn
+# from torch.utils.serialization import load_lua  # 最新版torch没有
+from torchfile import load
+import torchvision.utils as vutils
+
+from modelsNIPS import decoder1, decoder2, decoder3, decoder4, decoder5
+from modelsNIPS import encoder1, encoder2, encoder3, encoder4, encoder5
 
 
 
@@ -17,17 +16,16 @@ class WCT(nn.Module):
     def __init__(self,args):
         super(WCT, self).__init__()
         # load pre-trained network
-        vgg1 = load_lua(args.vgg1)
-        decoder1_torch = load_lua(args.decoder1)
-        vgg2 = load_lua(args.vgg2)
-        decoder2_torch = load_lua(args.decoder2)
-        vgg3 = load_lua(args.vgg3)
-        decoder3_torch = load_lua(args.decoder3)
-        vgg4 = load_lua(args.vgg4)
-        decoder4_torch = load_lua(args.decoder4)
-        vgg5 = load_lua(args.vgg5)
-        decoder5_torch = load_lua(args.decoder5)
-
+        vgg1 = load(args.vgg1, force_8bytes_long=True)  # windows下需要参数：force_8bytes_long=True
+        decoder1_torch = load(args.decoder1, force_8bytes_long=True)
+        vgg2 = load(args.vgg2, force_8bytes_long=True)
+        decoder2_torch = load(args.decoder2, force_8bytes_long=True)
+        vgg3 = load(args.vgg3, force_8bytes_long=True)
+        decoder3_torch = load(args.decoder3, force_8bytes_long=True)
+        vgg4 = load(args.vgg4, force_8bytes_long=True)
+        decoder4_torch = load(args.decoder4, force_8bytes_long=True)
+        vgg5 = load(args.vgg5, force_8bytes_long=True)
+        decoder5_torch = load(args.decoder5, force_8bytes_long=True)
 
         self.e1 = encoder1(vgg1)
         self.d1 = decoder1(decoder1_torch)
