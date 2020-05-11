@@ -1,15 +1,15 @@
-import os
-import torch
 import argparse
-from PIL import Image
-from torch.autograd import Variable
+import os
+import time
+
 import torchvision.utils as vutils
-import torchvision.datasets as datasets
+import torch.nn.functional as F
+from torch.autograd import Variable
+
+from tensorboardX import SummaryWriter
+
 from Loader import Dataset
 from util import *
-import scipy.misc
-from torch.utils.serialization import load_lua
-import time
 
 parser = argparse.ArgumentParser(description='WCT Pytorch')
 parser.add_argument('--contentPath',default='images/content',help='path to train')
@@ -102,8 +102,9 @@ for i,(contentImg,styleImg,imname) in enumerate(loader):
     if (args.cuda):
         contentImg = contentImg.cuda(args.gpu)
         styleImg = styleImg.cuda(args.gpu)
-    cImg = Variable(contentImg,volatile=True)
-    sImg = Variable(styleImg,volatile=True)
+    with torch.no_grad():
+        cImg = Variable(contentImg)
+        sImg = Variable(styleImg)
     start_time = time.time()
     # WCT Style Transfer
     styleTransfer(cImg,sImg,imname,csF)
