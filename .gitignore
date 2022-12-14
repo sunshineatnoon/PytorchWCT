@@ -1,7 +1,5 @@
-models
 models.zip
 models_pytorch.zip
-
 # python artifacts
 __pychache__
 *.pyc
