@@ -1,83 +1,112 @@
 from __future__ import division
 import torch
-from torch.utils.serialization import load_lua
-import torchvision.transforms as transforms
 import numpy as np
 import argparse
 import time
 import os
 from PIL import Image
-from modelsNIPS import decoder1,decoder2,decoder3,decoder4,decoder5
-from modelsNIPS import encoder1,encoder2,encoder3,encoder4,encoder5
+from vgg19_decoders import VGG19Decoder1, VGG19Decoder2, VGG19Decoder3, VGG19Decoder4, VGG19Decoder5 
+from vgg19_normalized import VGG19_normalized
 import torch.nn as nn
 
+
+
+def matrix_sqrt(A):
+  A = A.clone()
+  a_diag_ = A.diagonal()
+  a_diag_ += 1e-4
+
+  s_u, s_e, s_v = torch.svd(A,some=False)
+
+  k_s = A.shape[-1]
+  for i in range(k_s):
+      if s_e[i] < 0.00001:
+          k_s = i
+          break
+
+  s_d = (s_e[0:k_s]).pow(0.5)
+  step1 = torch.mm(s_v[:,0:k_s], torch.diag(s_d))
+  result = torch.mm(step1, (s_v[:,0:k_s].t()))
+  return result
+
+
+def matrix_inv_sqrt(A):
+  A = A.clone()
+  a_diag_ = A.diagonal()
+  a_diag_ += 1e-4
+  k_c = A.shape[-1]
+  c_u,c_e,c_v = torch.svd(A, some=False)
+
+  for i in range(k_c):
+      if c_e[i] < 0.00001:
+          k_c = i
+          break
+
+  c_d = (c_e[0:k_c]).pow(-0.5)
+  step1 = torch.mm(c_v[:,0:k_c],torch.diag(c_d))
+  result = torch.mm(step1,(c_v[:,0:k_c].t()))
+  return result
 
 
 class WCT(nn.Module):
     def __init__(self,args):
         super(WCT, self).__init__()
         # load pre-trained network
-        vgg1 = load_lua(args.vgg1)
-        decoder1_torch = load_lua(args.decoder1)
-        vgg2 = load_lua(args.vgg2)
-        decoder2_torch = load_lua(args.decoder2)
-        vgg3 = load_lua(args.vgg3)
-        decoder3_torch = load_lua(args.decoder3)
-        vgg4 = load_lua(args.vgg4)
-        decoder4_torch = load_lua(args.decoder4)
-        vgg5 = load_lua(args.vgg5)
-        decoder5_torch = load_lua(args.decoder5)
+        self.encoder = VGG19_normalized()
+        self.encoder.load_state_dict(torch.load(args.encoder))
 
+        self.d1 = VGG19Decoder1()
+        self.d1.load_state_dict(torch.load(args.decoder1))
+        self.d2 = VGG19Decoder2()
+        self.d2.load_state_dict(torch.load(args.decoder2))
+        self.d3 = VGG19Decoder3()
+        self.d3.load_state_dict(torch.load(args.decoder3))
+        self.d4 = VGG19Decoder4()
+        self.d4.load_state_dict(torch.load(args.decoder4))
+        self.d5 = VGG19Decoder5()
+        self.d5.load_state_dict(torch.load(args.decoder5))
 
-        self.e1 = encoder1(vgg1)
-        self.d1 = decoder1(decoder1_torch)
-        self.e2 = encoder2(vgg2)
-        self.d2 = decoder2(decoder2_torch)
-        self.e3 = encoder3(vgg3)
-        self.d3 = decoder3(decoder3_torch)
-        self.e4 = encoder4(vgg4)
-        self.d4 = decoder4(decoder4_torch)
-        self.e5 = encoder5(vgg5)
-        self.d5 = decoder5(decoder5_torch)
+        self.decoders = {'relu1_1': self.d1,
+                         'relu2_1': self.d2,
+                         'relu3_1': self.d3,
+                         'relu4_1': self.d4,
+                         'relu5_1': self.d5}
 
-    def whiten_and_color(self,cF,sF):
+    def whiten_and_color(self,cF,sF, method):
         cFSize = cF.size()
+        print(f'cF.shape = {cF.shape}')
         c_mean = torch.mean(cF,1) # c x (h x w)
         c_mean = c_mean.unsqueeze(1).expand_as(cF)
         cF = cF - c_mean
 
         contentConv = torch.mm(cF,cF.t()).div(cFSize[1]-1) + torch.eye(cFSize[0]).double()
-        c_u,c_e,c_v = torch.svd(contentConv,some=False)
-
-        k_c = cFSize[0]
-        for i in range(cFSize[0]):
-            if c_e[i] < 0.00001:
-                k_c = i
-                break
 
         sFSize = sF.size()
         s_mean = torch.mean(sF,1)
         sF = sF - s_mean.unsqueeze(1).expand_as(sF)
         styleConv = torch.mm(sF,sF.t()).div(sFSize[1]-1)
-        s_u,s_e,s_v = torch.svd(styleConv,some=False)
 
-        k_s = sFSize[0]
-        for i in range(sFSize[0]):
-            if s_e[i] < 0.00001:
-                k_s = i
-                break
+        if method == 'original':  # the original WCT by Li et al.
+          cF_inv_sqrt = matrix_inv_sqrt(contentConv)
+          sF_sqrt = matrix_sqrt(styleConv)
+          # whiten_cF = torch.mm(cF_inv_sqrt, cF)
+          # targetFeature = torch.mm(sF_sqrt,whiten_cF)
+          targetFeature = sF_sqrt @ (cF_inv_sqrt @ cF)
+        else:  # Lu et al.
+          assert method == 'closed-form'
+          cF_sqrt = matrix_sqrt(contentConv)
+          cF_inv_sqrt = matrix_inv_sqrt(contentConv)
+          print(f'cF_sqrt.shape = {cF_sqrt.shape}')
+          middle_matrix = matrix_sqrt(cF_sqrt @ styleConv @ cF_sqrt)
+          print(f'middle_matrix.shape = {middle_matrix.shape}')
+          transform_matrix = cF_inv_sqrt @ middle_matrix @ cF_inv_sqrt
+          targetFeature = transform_matrix @ cF
+          print(f'targetFeature.shape = {targetFeature.shape}')
 
-        c_d = (c_e[0:k_c]).pow(-0.5)
-        step1 = torch.mm(c_v[:,0:k_c],torch.diag(c_d))
-        step2 = torch.mm(step1,(c_v[:,0:k_c].t()))
-        whiten_cF = torch.mm(step2,cF)
-
-        s_d = (s_e[0:k_s]).pow(0.5)
-        targetFeature = torch.mm(torch.mm(torch.mm(s_v[:,0:k_s],torch.diag(s_d)),(s_v[:,0:k_s].t())),whiten_cF)
         targetFeature = targetFeature + s_mean.unsqueeze(1).expand_as(targetFeature)
         return targetFeature
 
-    def transform(self,cF,sF,csF,alpha):
+    def transform(self, cF, sF, method):
         cF = cF.double()
         sF = sF.double()
         C,W,H = cF.size(0),cF.size(1),cF.size(2)
@@ -85,9 +114,7 @@ class WCT(nn.Module):
         cFView = cF.view(C,-1)
         sFView = sF.view(C,-1)
 
-        targetFeature = self.whiten_and_color(cFView,sFView)
+        targetFeature = self.whiten_and_color(cFView, sFView, method)
         targetFeature = targetFeature.view_as(cF)
-        ccsF = alpha * targetFeature + (1.0 - alpha) * cF
-        ccsF = ccsF.float().unsqueeze(0)
-        csF.data.resize_(ccsF.size()).copy_(ccsF)
-        return csF
+        return targetFeature
+
